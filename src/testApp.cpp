@@ -5,19 +5,16 @@ void testApp::setup(){
     
     ofSetFrameRate(30);
     
-    //Initialize the training and info variables
     infoText = "";
     trainingClassLabel = 1;
     record = false;
+    UINT RIGHT_LABEL = 1;
+    UINT LEFT_LABEL = 2;
     
-    //The input to the training data will be the [x y] from the mouse, so we set the number of dimensions to 2
     trainingData.setNumDimensions( 3 );
     
-    
-    //Initialize the DTW classifier
     DTW dtw;
     
-    //Turn on null rejection, this lets the classifier output the predicted class label of 0 when the likelihood of a gesture is low
     dtw.enableNullRejection( true );
     
     //Set the null rejection coefficient to 3, this controls the thresholds for the automatic null rejection
@@ -33,22 +30,62 @@ void testApp::setup(){
     
     //Add the classifier to the pipeline (after we do this, we don't need the DTW classifier anymore)
     pipeline.setClassifier( dtw );
+    
+    
+    // The follwing 4 steps must be done for each training swipe, which constists of a series of (x,y,z)'s
+    // These sould probably be loaded in from a file
+    
+    // STEP 1: LOAD TRAINING DATA HERE! this is just fake sample data
+    // 0 -> x, 1 -> y, 3 -> z
+    VectorDouble rightSwipeMovement1(3);
+    rightSwipeMovement1[0] = 39;
+    rightSwipeMovement1[1] = -3; // < 0 so moving right
+    rightSwipeMovement1[2] = 188;
+    VectorDouble rightSwipeMovement2(3);
+    rightSwipeMovement1[0] = 41;
+    rightSwipeMovement1[1] = -5; // < 0 so moving right
+    rightSwipeMovement1[2] = 121;
+    VectorDouble rightSwipeMovement3(3);
+    rightSwipeMovement1[0] = 22;
+    rightSwipeMovement1[1] = -20; // < 0 so moving right
+    rightSwipeMovement1[2] = 188;
+    VectorDouble rightSwipeMovement4(3);
+    rightSwipeMovement1[0] = 39;
+    rightSwipeMovement1[1] = 3; // > 0 so finished and moving back to the left
+    rightSwipeMovement1[2] = 108;
+    
+    // STEP 2: add this series of movements onto the timeseries
+    timeseries.push_back(rightSwipeMovement1);
+    timeseries.push_back(rightSwipeMovement2);
+    timeseries.push_back(rightSwipeMovement3);
+    timeseries.push_back(rightSwipeMovement4);
+    
+    // STEP 3: Add this as training data with the correct label
+    trainingData.addSample(RIGHT_LABEL, timeseries);
+    // STEP 4: Clear the timeseries so the next things you add arent part of the same motion
+    timeseries.clear();
+    
+    
+    // Now once we have added enough training data by doing these steps for many examples, train it
+    pipeline.train( trainingData );
 }
 
 //--------------------------------------------------------------
 void testApp::update(){
+    ///////////////////////
+    // this is where we want to pull the latest value from the accelerometer
+    // (not just add 0's obv)
+    ///////////////////////
     
-    //Grab the current mouse x and y position
-    VectorDouble sample(2);
-    sample[0] = mouseX;
-    sample[1] = mouseY;
+    VectorDouble sample(3);
+    sample[0] = 0;
+    sample[1] = 0;
+    sample[2] = 0;
     
-    //If we are recording training data, then add the current sample to the training data set
     if( record ){
         timeseries.push_back( sample );
     }
     
-    //If the pipeline has been trained, then run the prediction
     if( pipeline.getTrained() ){
         pipeline.predict( sample );
     }
@@ -63,7 +100,6 @@ void testApp::draw(){
     int textX = 20;
     int textY = 20;
     
-    //Draw the training info
     ofSetColor(255, 255, 255);
     text = "------------------- TrainingInfo -------------------";
     ofDrawBitmapString(text, textX,textY);
@@ -84,7 +120,6 @@ void testApp::draw(){
     ofDrawBitmapString(text, textX,textY);
     
     
-    //Draw the prediction info
     textY += 30;
     text = "------------------- Prediction Info -------------------";
     ofDrawBitmapString(text, textX,textY);
@@ -94,6 +129,9 @@ void testApp::draw(){
     ofDrawBitmapString(text, textX,textY);
     
     textY += 15;
+    
+    // this always outputs the class label on the screen, using the latest value from
+    // the data added in the update method
     text = "PredictedClassLabel: " + ofToString(pipeline.getPredictedClassLabel());
     ofDrawBitmapString(text, textX,textY);
     
@@ -106,12 +144,10 @@ void testApp::draw(){
     ofDrawBitmapString(text, textX,textY);
     
     
-    //Draw the info text
     textY += 30;
     text = "InfoText: " + infoText;
     ofDrawBitmapString(text, textX,textY);
     
-    //Draw the timeseries data
     if( record ){
         ofFill();
         for(UINT i=0; i<timeseries.getNumRows(); i++){
@@ -128,7 +164,6 @@ void testApp::draw(){
     
     if( pipeline.getTrained() ){
         
-        //Draw the data in the DTW input buffer
         DTW *dtw = pipeline.getClassifier< DTW >();
         
         if( dtw != NULL ){
