@@ -1,4 +1,5 @@
 #include "testApp.h"
+#include <stdio.h>
 
 //--------------------------------------------------------------
 void testApp::setup(){
@@ -10,6 +11,12 @@ void testApp::setup(){
     record = false;
     UINT RIGHT_LABEL = 1;
     UINT LEFT_LABEL = 2;
+    
+    outputNamedPipe = open("fifo", O_WRONLY);
+    
+    // replace with real messages
+    leftSwipeMessage = "left message";
+    rightSwipeMessage = "right message";
     
     trainingData.setNumDimensions( 3 );
     
@@ -37,6 +44,7 @@ void testApp::setup(){
     
     // STEP 1: LOAD TRAINING DATA HERE! this is just fake sample data
     // 0 -> x, 1 -> y, 3 -> z
+    /*
     VectorDouble rightSwipeMovement1(3);
     rightSwipeMovement1[0] = 39;
     rightSwipeMovement1[1] = -3; // < 0 so moving right
@@ -68,19 +76,31 @@ void testApp::setup(){
     
     // Now once we have added enough training data by doing these steps for many examples, train it
     pipeline.train( trainingData );
+     */
 }
-
+double stringToDouble(const std::string& s){
+    std::istringstream i(s);
+    double x;
+    if (!(i >> x))
+        return 0;
+    return x;
+}
 //--------------------------------------------------------------
 void testApp::update(){
-    ///////////////////////
-    // this is where we want to pull the latest value from the accelerometer
-    // (not just add 0's obv)
-    ///////////////////////
+    
+    std::string lastLine = "42 -5 9"; // x y z, pulled from a file or stdin in reality
+    
+    std::string delimeter = " ";
+    std::string xStr = lastLine.substr(0, lastLine.find(delimeter));
+    lastLine = lastLine.erase(0, lastLine.find(delimeter) + delimeter.length());
+    std::string yStr = lastLine.substr(0, lastLine.find(delimeter));
+    lastLine = lastLine.erase(0, lastLine.find(delimeter) + delimeter.length());
+    std::string zStr = lastLine.substr(0, lastLine.find(delimeter));
     
     VectorDouble sample(3);
-    sample[0] = 0;
-    sample[1] = 0;
-    sample[2] = 0;
+    sample[0] = stringToDouble(xStr);
+    sample[1] = stringToDouble(yStr);
+    sample[2] = stringToDouble(zStr);
     
     if( record ){
         timeseries.push_back( sample );
@@ -88,6 +108,14 @@ void testApp::update(){
     
     if( pipeline.getTrained() ){
         pipeline.predict( sample );
+        // write to a named pipe
+        std::string label = ofToString(pipeline.getPredictedClassLabel());
+        if (label.compare("1") == 0){
+            write(outputNamedPipe, leftSwipeMessage, sizeof(leftSwipeMessage) / sizeof(leftSwipeMessage[0]));
+        }
+        if (label.compare("2") == 0){
+            write(outputNamedPipe, rightSwipeMessage, sizeof(rightSwipeMessage) / sizeof(rightSwipeMessage[0]));
+        }
     }
 }
 
